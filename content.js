@@ -9,10 +9,14 @@ function loadScript(src) {
 }
 
 function loadFontAwesome() {
-  const link = document.createElement('link');
-  link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css';
-  link.rel = 'stylesheet';
-  document.head.appendChild(link);
+  return new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css';
+    link.rel = 'stylesheet';
+    link.onload = resolve;
+    link.onerror = reject;
+    document.head.appendChild(link);
+  });
 }
 
 let galleryMode = false;
@@ -30,6 +34,9 @@ let lastImageCount = 0;
 let noNewImagesCount = 0;
 const MAX_NO_NEW_IMAGES = 3;
 let imageUrls = new Set();
+let isDragging = false;
+let startX, startY;
+let translateX = 0, translateY = 0;
 
 function changeImage(direction) {
   if (isChangingImage || !galleryMode) return;
@@ -77,11 +84,20 @@ function changeImage(direction) {
     scrollToCurrentImage();
     
     // 重新添加事件监听器
-    newImage.addEventListener('wheel', handleWheel, { passive: false });
+    addImageEventListeners(newImage);
     
     // 更新缩略图
     updateThumbnails();
   }, 300);
+}
+
+// 新增函数，用于添加图片事件监听器
+function addImageEventListeners(image) {
+  image.addEventListener('wheel', handleWheel, { passive: false });
+  image.addEventListener('mousedown', startDrag);
+  image.addEventListener('mousemove', drag);
+  image.addEventListener('mouseup', endDrag);
+  image.addEventListener('mouseleave', endDrag);
 }
 
 function updateThumbnails() {
@@ -131,9 +147,14 @@ function handleKeyPress(e) {
   }
 }
 
-function toggleGalleryMode() {
+async function toggleGalleryMode() {
   if (!galleryMode) {
-    loadFontAwesome();
+    try {
+      await loadFontAwesome(); // 等待 Font Awesome 加载完成
+      console.log('Font Awesome loaded successfully');
+    } catch (error) {
+      console.error('Failed to load Font Awesome:', error);
+    }
     simulateScroll();
     imageUrls.clear();
     images = getImages();
@@ -201,6 +222,7 @@ function createGalleryOverlay() {
           <option value="3">300%</option>
         </select>
         <button id="zoom-in" class="nav-btn"><i class="fas fa-search-plus"></i></button>
+        <button id="reset-image" class="nav-btn"><i class="fas fa-sync-alt"></i>复原</button>
       </div>
       <div class="navbar-center">
         <button id="rotate-left" class="nav-btn"><i class="fas fa-undo"></i>向左旋转</button>
@@ -210,7 +232,7 @@ function createGalleryOverlay() {
       </div>
       <div class="navbar-right">
         <button id="download-all" class="nav-btn"><i class="fas fa-download"></i>下载所有图片</button>
-        <button id="exit-gallery" class="nav-btn"><i class="fas fa-times"></i>退出</button>
+        <button id="exit-gallery" class="nav-btn"><i class="fas fa-times-circle"></i>退出</button>
       </div>
     </div>
     <button id="prev-button" class="nav-button prev-button">
@@ -241,26 +263,19 @@ function createGalleryOverlay() {
   document.getElementById('flip-vertical').addEventListener('click', () => flipImage('vertical'));
   document.getElementById('download-all').addEventListener('click', downloadAllImages);
   document.getElementById('exit-gallery').addEventListener('click', removeGalleryOverlay);
+  document.getElementById('reset-image').addEventListener('click', resetImage);
 
   document.getElementById('zoom-select').addEventListener('change', (e) => {
     scale = parseFloat(e.target.value);
-    applyImageTransform();
+    applyImageTransform(true);
   });
-
-  function handleWheel(e) {
-    e.preventDefault();
-    const factor = Math.pow(1.001, -e.deltaY);
-    zoomImage(factor);
-  }
 
   overlay.addEventListener('wheel', handleWheel, { passive: false });
 
   updateThumbnailListeners();
 
   const galleryImage = document.getElementById('gallery-image');
-  galleryImage.addEventListener('wheel', handleWheel, { passive: false });
-
-  overlay.addEventListener('wheel', handleWheel, { passive: false });
+  addImageEventListeners(galleryImage);
 }
 
 function removeGalleryOverlay() {
@@ -421,21 +436,28 @@ function resetImageTransform() {
   rotation = 0;
   flipHorizontal = false;
   flipVertical = false;
+  translateX = 0;
+  translateY = 0;
   applyImageTransform();
   updateZoomSelect();
 }
 
-function applyImageTransform() {
+function applyImageTransform(withTransition = false) {
   const galleryImage = document.getElementById('gallery-image');
   if (galleryImage) {
-    galleryImage.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
-    galleryImage.style.transform = `scale(${flipHorizontal ? -scale : scale}, ${flipVertical ? -scale : scale}) rotate(${rotation}deg)`;
+    if (withTransition) {
+      galleryImage.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+    } else {
+      galleryImage.style.transition = '';
+    }
+    galleryImage.style.transform = `translate(${translateX}px, ${translateY}px) scale(${flipHorizontal ? -scale : scale}, ${flipVertical ? -scale : scale}) rotate(${rotation}deg)`;
     updateZoomSelect();
     
-    // 在过渡结束后移除 transition 属性，以避免影响其他变换
-    setTimeout(() => {
-      galleryImage.style.transition = '';
-    }, 300);
+    if (withTransition) {
+      setTimeout(() => {
+        galleryImage.style.transition = '';
+      }, 300);
+    }
   }
 }
 
@@ -457,13 +479,13 @@ function zoomImage(factor) {
   const targetScale = scale * factor;
   scale = Math.max(0.1, Math.min(5, targetScale));
   requestAnimationFrame(() => {
-    applyImageTransform();
+    applyImageTransform(true); // 添加过渡效果
   });
 }
 
 function rotateImage(angle) {
   rotation = (rotation + angle + 360) % 360;
-  applyImageTransform();
+  applyImageTransform(true); // 添加过渡效果
 }
 
 function flipImage(direction) {
@@ -472,7 +494,52 @@ function flipImage(direction) {
   } else if (direction === 'vertical') {
     flipVertical = !flipVertical;
   }
-  applyImageTransform();
+  applyImageTransform(true); // 添加过渡效果
+}
+
+function startDrag(e) {
+  isDragging = true;
+  startX = e.clientX - translateX;
+  startY = e.clientY - translateY;
+  e.preventDefault();
+}
+
+function drag(e) {
+  if (isDragging) {
+    e.preventDefault();
+    translateX = e.clientX - startX;
+    translateY = e.clientY - startY;
+    applyImageTransform(false); // 不添加过渡效果，保持拖拽流畅
+  }
+}
+
+function endDrag() {
+  isDragging = false;
+}
+
+function resetImage() {
+  scale = 1;
+  rotation = 0;
+  flipHorizontal = false;
+  flipVertical = false;
+  translateX = 0;
+  translateY = 0;
+  applyImageTransform(true); // 添加过渡效果
+  updateZoomSelect();
+}
+
+function scrollToCurrentImage() {
+  const currentImage = images[currentImageIndex];
+  if (currentImage) {
+    const rect = currentImage.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const targetScrollTop = rect.top + scrollTop - window.innerHeight / 2 + rect.height / 2;
+    
+    window.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth'
+    });
+  }
 }
 
 // 初始化时添加消息监听器
@@ -481,3 +548,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     toggleGalleryMode();
   }
 });
+
+// 将这个函数移到文件的顶部，其他全局函数的附近
+function handleWheel(e) {
+  e.preventDefault();
+  const factor = Math.pow(1.001, -e.deltaY);
+  zoomImage(factor);
+}
+
+// 将这些函数移到文件的顶部，其他全局函数的附近
+function startDrag(e) {
+  isDragging = true;
+  startX = e.clientX - translateX;
+  startY = e.clientY - translateY;
+  e.preventDefault();
+}
+
+function drag(e) {
+  if (isDragging) {
+    e.preventDefault();
+    translateX = e.clientX - startX;
+    translateY = e.clientY - startY;
+    applyImageTransform(false); // 不添加过渡效果，保持拖拽流畅
+  }
+}
+
+function endDrag() {
+  isDragging = false;
+}
