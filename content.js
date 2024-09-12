@@ -150,8 +150,14 @@ function handleKeyPress(e) {
 async function toggleGalleryMode() {
   if (!galleryMode) {
     try {
-      await loadFontAwesome(); // 等待 Font Awesome 加载完成
+      await loadFontAwesome();
       console.log('Font Awesome loaded successfully');
+      setIconStyles();
+      if (checkFontAwesome()) {
+        console.log('Font Awesome is working correctly');
+      } else {
+        console.warn('Font Awesome may not be working correctly');
+      }
     } catch (error) {
       console.error('Failed to load Font Awesome:', error);
     }
@@ -170,7 +176,7 @@ async function toggleGalleryMode() {
       imageCheckInterval = setInterval(checkForNewImages, 2000);
       document.addEventListener('keydown', handleKeyPress);
     } else {
-      alert('没有找到合适的图片');
+      alert('没有找到合适的片');
     }
   } else {
     removeGalleryOverlay();
@@ -222,7 +228,7 @@ function createGalleryOverlay() {
           <option value="3">300%</option>
         </select>
         <button id="zoom-in" class="nav-btn"><i class="fas fa-search-plus"></i></button>
-        <button id="reset-image" class="nav-btn"><i class="fas fa-sync-alt"></i>复原</button>
+        <button id="reset-image" class="nav-btn">复原</button>
       </div>
       <div class="navbar-center">
         <button id="rotate-left" class="nav-btn"><i class="fas fa-undo"></i>向左旋转</button>
@@ -232,7 +238,7 @@ function createGalleryOverlay() {
       </div>
       <div class="navbar-right">
         <button id="download-all" class="nav-btn"><i class="fas fa-download"></i>下载所有图片</button>
-        <button id="exit-gallery" class="nav-btn"><i class="fas fa-times-circle"></i>退出</button>
+        <button id="exit-gallery" class="nav-btn">退出</button>
       </div>
     </div>
     <button id="prev-button" class="nav-button prev-button">
@@ -307,7 +313,7 @@ function removeGalleryOverlay() {
   lastImageCount = 0;
   imageUrls.clear();
   
-  // 强制重新计算布局
+  // 强制重计算布局
   window.dispatchEvent(new Event('resize'));
 }
 
@@ -556,7 +562,7 @@ function handleWheel(e) {
   zoomImage(factor);
 }
 
-// 将这些函数移到文件的顶部，其他全局函数的附近
+// 将这些函数移文件的顶部，其他全局函数的附近
 function startDrag(e) {
   isDragging = true;
   startX = e.clientX - translateX;
@@ -575,4 +581,35 @@ function drag(e) {
 
 function endDrag() {
   isDragging = false;
+}
+
+function setIconStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .nav-btn i {
+      display: inline-block !important;
+      width: auto !important;
+      height: auto !important;
+      font-size: 16px !important;
+      margin-right: 5px !important;
+      font-style: normal !important;
+    }
+    .nav-btn i::before {
+      display: inline-block !important;
+    }
+    .icon-btn::before {
+      content: '' !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function checkFontAwesome() {
+  const testIcon = document.createElement('i');
+  testIcon.className = 'fas fa-user';
+  testIcon.style.visibility = 'hidden';
+  document.body.appendChild(testIcon);
+  const isFontAwesomeLoaded = window.getComputedStyle(testIcon, ':before').getPropertyValue('content') !== '';
+  document.body.removeChild(testIcon);
+  return isFontAwesomeLoaded;
 }
