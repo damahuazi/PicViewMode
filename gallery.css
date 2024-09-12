@@ -378,3 +378,9 @@ body.gallery-mode {
 #gallery-image:active {
   cursor: grabbing; /* 拖动时显示抓取状态的光标 */
 }
+
+.image-count {
+  color: #fff;
+  margin-right: 10px;
+  font-size: 14px;
+}

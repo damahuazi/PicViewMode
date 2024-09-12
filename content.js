@@ -243,6 +243,7 @@ function createGalleryOverlay() {
         <button id="flip-vertical" class="nav-btn"><i class="fas fa-arrows-alt-v"></i>上下翻转</button>
       </div>
       <div class="navbar-right">
+        <span id="image-count" class="image-count">共${images.length}张</span>
         <button id="download-all" class="nav-btn"><i class="fas fa-download"></i>下载所有图片</button>
         <button id="exit-gallery" class="nav-btn">退出</button>
       </div>
@@ -415,6 +416,7 @@ function checkForNewImages() {
     addNewImagesToGallery(addedImages);
     lastImageCount = images.length;
     noNewImagesCount = 0;
+    updateImageCount();
   } else {
     noNewImagesCount++;
   }
@@ -661,4 +663,11 @@ function checkFontAwesome() {
   const isFontAwesomeLoaded = window.getComputedStyle(testIcon, ':before').getPropertyValue('content') !== '';
   document.body.removeChild(testIcon);
   return isFontAwesomeLoaded;
+}
+
+function updateImageCount() {
+  const imageCountElement = document.getElementById('image-count');
+  if (imageCountElement) {
+    imageCountElement.textContent = `共${images.length}张`;
+  }
 }
