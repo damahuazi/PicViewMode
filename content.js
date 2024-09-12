@@ -98,6 +98,12 @@ function addImageEventListeners(image) {
   image.addEventListener('mousemove', drag);
   image.addEventListener('mouseup', endDrag);
   image.addEventListener('mouseleave', endDrag);
+  image.addEventListener('mouseenter', () => {
+    image.style.cursor = 'grab';
+  });
+  image.addEventListener('mouseleave', () => {
+    image.style.cursor = 'default';
+  });
 }
 
 function updateThumbnails() {
@@ -250,10 +256,10 @@ function createGalleryOverlay() {
     <div class="gallery-content">
       <img src="${images[currentImageIndex].src}" alt="Gallery Image" id="gallery-image">
     </div>
-    <div class="gallery-thumbnails">
+    <div class="gallery-thumbnails" style="overflow-x: auto; white-space: nowrap; scrollbar-width: thin;">
       ${images.map((img, index) => {
         const thumbnailSrc = img.src || img.dataset.src || '';
-        return `<img src="${thumbnailSrc}" alt="Thumbnail" class="thumbnail ${index === currentImageIndex ? 'active' : ''}" data-index="${index}">`;
+        return `<img src="${thumbnailSrc}" alt="Thumbnail" class="thumbnail ${index === currentImageIndex ? 'active' : ''}" data-index="${index}" style="display: inline-block; margin-right: 5px;">`;
       }).join('')}
     </div>
   `;
@@ -282,6 +288,9 @@ function createGalleryOverlay() {
 
   const galleryImage = document.getElementById('gallery-image');
   addImageEventListeners(galleryImage);
+
+  // 初始化缩略图选中状态和滚动位置
+  updateThumbnailSelection();
 }
 
 function removeGalleryOverlay() {
@@ -432,9 +441,21 @@ function addNewImagesToGallery(newImages) {
 }
 
 function updateThumbnailSelection() {
-  document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+  const thumbnails = document.querySelectorAll('.thumbnail');
+  thumbnails.forEach((thumb, index) => {
     thumb.classList.toggle('active', index === currentImageIndex);
   });
+
+  // 滚动到当前选中的缩略图
+  const activeThumb = thumbnails[currentImageIndex];
+  if (activeThumb) {
+    const thumbnailsContainer = document.querySelector('.gallery-thumbnails');
+    const containerWidth = thumbnailsContainer.clientWidth;
+    const thumbLeft = activeThumb.offsetLeft;
+    const thumbWidth = activeThumb.clientWidth;
+    
+    thumbnailsContainer.scrollLeft = thumbLeft - (containerWidth / 2) + (thumbWidth / 2);
+  }
 }
 
 function resetImageTransform() {
@@ -508,6 +529,11 @@ function startDrag(e) {
   startX = e.clientX - translateX;
   startY = e.clientY - translateY;
   e.preventDefault();
+  document.body.style.cursor = 'grabbing'; // 设置整个 body 的光标样式为抓取状态
+  const galleryImage = document.getElementById('gallery-image');
+  if (galleryImage) {
+    galleryImage.style.cursor = 'grabbing';
+  }
 }
 
 function drag(e) {
@@ -521,6 +547,11 @@ function drag(e) {
 
 function endDrag() {
   isDragging = false;
+  document.body.style.cursor = ''; // 恢复 body 的默认光标样式
+  const galleryImage = document.getElementById('gallery-image');
+  if (galleryImage) {
+    galleryImage.style.cursor = 'grab';
+  }
 }
 
 function resetImage() {
@@ -568,6 +599,11 @@ function startDrag(e) {
   startX = e.clientX - translateX;
   startY = e.clientY - translateY;
   e.preventDefault();
+  document.body.style.cursor = 'grabbing'; // 设置整个 body 的光标样式为抓取状态
+  const galleryImage = document.getElementById('gallery-image');
+  if (galleryImage) {
+    galleryImage.style.cursor = 'grabbing';
+  }
 }
 
 function drag(e) {
@@ -581,6 +617,11 @@ function drag(e) {
 
 function endDrag() {
   isDragging = false;
+  document.body.style.cursor = ''; // 恢复 body 的默认光标样式
+  const galleryImage = document.getElementById('gallery-image');
+  if (galleryImage) {
+    galleryImage.style.cursor = 'grab';
+  }
 }
 
 function setIconStyles() {
@@ -599,6 +640,14 @@ function setIconStyles() {
     }
     .icon-btn::before {
       content: '' !important;
+    }
+    #gallery-image {
+      cursor: move; /* 默认显示移动光标 */
+      cursor: grab; /* 现代浏览器中显示抓手光标 */
+    }
+
+    #gallery-image:active {
+      cursor: grabbing; /* 拖动时显示抓取状态的光标 */
     }
   `;
   document.head.appendChild(style);
