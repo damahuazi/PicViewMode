@@ -31,11 +31,105 @@ let noNewImagesCount = 0;
 const MAX_NO_NEW_IMAGES = 3;
 let imageUrls = new Set();
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "enterGallery") {
-    toggleGalleryMode();
+function changeImage(direction) {
+  if (isChangingImage || !galleryMode) return;
+  isChangingImage = true;
+
+  const newIndex = (currentImageIndex + direction + images.length) % images.length;
+  
+  const galleryContent = document.querySelector('.gallery-content');
+  const oldImage = document.getElementById('gallery-image');
+  
+  const newImage = document.createElement('img');
+  newImage.src = images[newIndex].src;
+  newImage.alt = "Gallery Image";
+  newImage.id = "new-gallery-image";
+  
+  newImage.style.opacity = '0';
+  newImage.style.transform = `translateX(${direction > 0 ? '100%' : '-100%'})`;
+  
+  galleryContent.appendChild(newImage);
+  
+  // 强制重排
+  newImage.offsetHeight;
+  
+  newImage.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+  newImage.style.opacity = '1';
+  newImage.style.transform = 'translateX(0)';
+  
+  if (oldImage) {
+    oldImage.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    oldImage.style.opacity = '0';
+    oldImage.style.transform = `translateX(${direction > 0 ? '-100%' : '100%'})`;
   }
-});
+  
+  setTimeout(() => {
+    if (oldImage) {
+      oldImage.remove();
+    }
+    newImage.id = 'gallery-image';
+    newImage.style.transition = '';
+    newImage.style.transform = '';
+    currentImageIndex = newIndex;
+    updateThumbnailSelection();
+    resetImageTransform();
+    isChangingImage = false;
+    scrollToCurrentImage();
+    
+    // 重新添加事件监听器
+    newImage.addEventListener('wheel', handleWheel, { passive: false });
+    
+    // 更新缩略图
+    updateThumbnails();
+  }, 300);
+}
+
+function updateThumbnails() {
+  const thumbnailsContainer = document.querySelector('.gallery-thumbnails');
+  thumbnailsContainer.innerHTML = images.map((img, index) => {
+    const thumbnailSrc = img.src || img.dataset.src || '';
+    return `<img src="${thumbnailSrc}" alt="Thumbnail" class="thumbnail ${index === currentImageIndex ? 'active' : ''}" data-index="${index}">`;
+  }).join('');
+  
+  updateThumbnailListeners();
+}
+
+function updateThumbnailListeners() {
+  document.querySelectorAll('.thumbnail').forEach(thumb => {
+    thumb.addEventListener('click', (e) => {
+      const newIndex = parseInt(e.target.dataset.index);
+      if (newIndex !== currentImageIndex) {
+        changeImage(newIndex - currentImageIndex);
+      }
+    });
+  });
+}
+
+function handleKeyPress(e) {
+  if (!galleryMode) return;
+
+  switch (e.key) {
+    case 'Escape':
+      removeGalleryOverlay();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      changeImage(-1);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      changeImage(1);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      zoomImage(1.2); // 放大幅度增加
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      zoomImage(0.8); // 缩小幅度增加
+      break;
+  }
+}
 
 function toggleGalleryMode() {
   if (!galleryMode) {
@@ -53,6 +147,7 @@ function toggleGalleryMode() {
       noNewImagesCount = 0;
       lastImageCount = images.length;
       imageCheckInterval = setInterval(checkForNewImages, 2000);
+      document.addEventListener('keydown', handleKeyPress);
     } else {
       alert('没有找到合适的图片');
     }
@@ -152,156 +247,20 @@ function createGalleryOverlay() {
     applyImageTransform();
   });
 
-  function zoomImage(factor) {
-    scale *= factor;
-    scale = Math.max(0.1, Math.min(5, scale));
-    applyImageTransform();
-  }
-
   function handleWheel(e) {
     e.preventDefault();
     const factor = Math.pow(1.001, -e.deltaY);
     zoomImage(factor);
   }
 
-  function rotateImage(angle) {
-    rotation = (rotation + angle + 360) % 360;
-    applyImageTransform();
-  }
-
-  function flipImage(direction) {
-    if (direction === 'horizontal') {
-      flipHorizontal = !flipHorizontal;
-    } else if (direction === 'vertical') {
-      flipVertical = !flipVertical;
-    }
-    applyImageTransform();
-  }
-
   overlay.addEventListener('wheel', handleWheel, { passive: false });
-
-  function updateThumbnailSelection() {
-    document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
-      thumb.classList.toggle('active', index === currentImageIndex);
-    });
-  }
-
-  function changeImage(direction) {
-    if (isChangingImage) return;
-    isChangingImage = true;
-
-    const currentImage = document.getElementById('gallery-image');
-    const newIndex = (currentImageIndex + direction + images.length) % images.length;
-    
-    document.querySelectorAll('#new-gallery-image').forEach(img => img.remove());
-    
-    const newImage = document.createElement('img');
-    newImage.src = images[newIndex].src;
-    newImage.alt = "Gallery Image";
-    newImage.id = "new-gallery-image";
-    
-    newImage.style.opacity = '0';
-    newImage.style.transform = `translateX(${direction > 0 ? '100%' : '-100%'})`;
-    
-    const galleryContent = document.querySelector('.gallery-content');
-    galleryContent.appendChild(newImage);
-    
-    newImage.offsetHeight;
-    
-    newImage.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    newImage.style.opacity = '1';
-    newImage.style.transform = 'translateX(0)';
-    
-    currentImage.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    currentImage.style.opacity = '0';
-    currentImage.style.transform = `translateX(${direction > 0 ? '-100%' : '100%'})`;
-    
-    setTimeout(() => {
-      currentImage.remove();
-      newImage.id = 'gallery-image';
-      newImage.style.transition = '';
-      newImage.style.transform = '';
-      currentImageIndex = newIndex;
-      updateThumbnailSelection();
-      resetImageTransform();
-      isChangingImage = false;
-      scrollToCurrentImage();
-    }, 300);
-  }
-
-  function scrollToCurrentImage() {
-    const currentImage = images[currentImageIndex];
-    const rect = currentImage.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const targetScrollTop = rect.top + scrollTop - window.innerHeight / 2 + rect.height / 2;
-    
-    window.scrollTo({
-      top: targetScrollTop,
-      behavior: 'smooth'
-    });
-  }
-
-  function resetImageTransform() {
-    scale = 1;
-    rotation = 0;
-    flipHorizontal = false;
-    flipVertical = false;
-    applyImageTransform();
-    updateZoomSelect();
-  }
-
-  function updateZoomSelect() {
-    const zoomSelect = document.getElementById('zoom-select');
-    if (!zoomSelect) return;
-
-    const roundedScale = Math.round(scale * 100) / 100;
-    
-    if (!Array.from(zoomSelect.options).some(option => parseFloat(option.value) === roundedScale)) {
-      const newOption = new Option(`${(roundedScale * 100).toFixed(0)}%`, roundedScale.toString());
-      zoomSelect.add(newOption);
-    }
-    
-    zoomSelect.value = roundedScale.toString();
-  }
-
-  function applyImageTransform() {
-    const galleryImage = document.getElementById('gallery-image');
-    if (galleryImage) {
-      galleryImage.style.transform = `scale(${flipHorizontal ? -scale : scale}, ${flipVertical ? -scale : scale}) rotate(${rotation}deg)`;
-      galleryImage.style.transition = 'transform 0.1s ease';
-      updateZoomSelect();
-    }
-  }
-
-  function updateThumbnailListeners() {
-    document.querySelectorAll('.thumbnail').forEach(thumb => {
-      thumb.addEventListener('click', (e) => {
-        const newIndex = parseInt(e.target.dataset.index);
-        if (newIndex !== currentImageIndex) {
-          changeImage(newIndex - currentImageIndex);
-        }
-      });
-    });
-  }
 
   updateThumbnailListeners();
 
   const galleryImage = document.getElementById('gallery-image');
   galleryImage.addEventListener('wheel', handleWheel, { passive: false });
 
-  document.addEventListener('keydown', handleKeyPress);
-
   overlay.addEventListener('wheel', handleWheel, { passive: false });
-}
-
-function handleKeyPress(e) {
-  if (e.key === 'Escape') {
-    removeGalleryOverlay();
-  } else if (e.key === 'ArrowLeft') {
-    changeImage(-1);
-  } else if (e.key === 'ArrowRight') {
-    changeImage(1);
-  }
 }
 
 function removeGalleryOverlay() {
@@ -450,3 +409,75 @@ function addNewImagesToGallery(newImages) {
     thumb.dataset.index = index;
   });
 }
+
+function updateThumbnailSelection() {
+  document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+    thumb.classList.toggle('active', index === currentImageIndex);
+  });
+}
+
+function resetImageTransform() {
+  scale = 1;
+  rotation = 0;
+  flipHorizontal = false;
+  flipVertical = false;
+  applyImageTransform();
+  updateZoomSelect();
+}
+
+function applyImageTransform() {
+  const galleryImage = document.getElementById('gallery-image');
+  if (galleryImage) {
+    galleryImage.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+    galleryImage.style.transform = `scale(${flipHorizontal ? -scale : scale}, ${flipVertical ? -scale : scale}) rotate(${rotation}deg)`;
+    updateZoomSelect();
+    
+    // 在过渡结束后移除 transition 属性，以避免影响其他变换
+    setTimeout(() => {
+      galleryImage.style.transition = '';
+    }, 300);
+  }
+}
+
+function updateZoomSelect() {
+  const zoomSelect = document.getElementById('zoom-select');
+  if (!zoomSelect) return;
+
+  const roundedScale = Math.round(scale * 100) / 100;
+  
+  if (!Array.from(zoomSelect.options).some(option => parseFloat(option.value) === roundedScale)) {
+    const newOption = new Option(`${(roundedScale * 100).toFixed(0)}%`, roundedScale.toString());
+    zoomSelect.add(newOption);
+  }
+  
+  zoomSelect.value = roundedScale.toString();
+}
+
+function zoomImage(factor) {
+  const targetScale = scale * factor;
+  scale = Math.max(0.1, Math.min(5, targetScale));
+  requestAnimationFrame(() => {
+    applyImageTransform();
+  });
+}
+
+function rotateImage(angle) {
+  rotation = (rotation + angle + 360) % 360;
+  applyImageTransform();
+}
+
+function flipImage(direction) {
+  if (direction === 'horizontal') {
+    flipHorizontal = !flipHorizontal;
+  } else if (direction === 'vertical') {
+    flipVertical = !flipVertical;
+  }
+  applyImageTransform();
+}
+
+// 初始化时添加消息监听器
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "enterGallery") {
+    toggleGalleryMode();
+  }
+});
