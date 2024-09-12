@@ -104,6 +104,7 @@ function addImageEventListeners(image) {
   image.addEventListener('mouseleave', () => {
     image.style.cursor = 'default';
   });
+  image.addEventListener('dblclick', resetImage);
 }
 
 function updateThumbnails() {
@@ -292,6 +293,17 @@ function createGalleryOverlay() {
 
   // 初始化缩略图选中状态和滚动位置
   updateThumbnailSelection();
+
+  // 添加双击事件监听器
+  overlay.addEventListener('dblclick', (e) => {
+    // 检查双击事件是否发生在按钮、缩略图或其他控制元素上
+    if (!e.target.closest('.gallery-navbar') && 
+        !e.target.closest('.gallery-thumbnails') && 
+        !e.target.closest('.nav-button') &&
+        e.target.id !== 'gallery-image') {
+      resetImage(e);
+    }
+  });
 }
 
 function removeGalleryOverlay() {
@@ -556,7 +568,11 @@ function endDrag() {
   }
 }
 
-function resetImage() {
+function resetImage(e) {
+  if (e) {
+    e.preventDefault(); // 防止默认的双击行为（如果有的话）
+    e.stopPropagation(); // 阻止事件冒泡
+  }
   scale = 1;
   rotation = 0;
   flipHorizontal = false;
